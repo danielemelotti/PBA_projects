@@ -1,0 +1,129 @@
+```{r}
+### ASSIGNMENT 1 ###
+
+# ANSWERS #
+# 1) Mean of Quantity: 10.659 & Mean of UnitPrice: 4.309
+# 2) InvoiceNo: char; StockCode: char; Description: char; Quantity: int; InvoiceDate: char; UnitPrice: num; CustomerID: int; Country: char; date: date
+# 3) InvoiceNo: 3664; StockCode: 2982; Description: 2953; Quantity: 287; InvoiceDate: 3343; UnitPrice: 447; CustomerID: 1541; Country: 28; date: 52
+# 4) Average of UnitPrice: 4.344 & Standard deviation of UnitPrice: 98.961
+# 5) 3332
+# 6) 1380
+#WRONG 7) Total number of refunds: 1324 & Number of unique customers who made a refund: 381
+#WRONG 8) 173374.14
+#WRONG 9) 19638
+
+# Please find the coding in the chunks below.
+```
+
+
+```{r}
+## a)
+# Importing the data:
+ords <- data.frame()
+ords <- read.csv(file = "online_retail.csv", stringsAsFactors = FALSE)
+
+# Verifying that the data has been imported correctly:
+head(ords)
+str(ords)
+```
+
+```{r}
+## b)
+# Converting InvoiceDate variable to date class:
+ords$date <- as.Date(x = ords$InvoiceDate , format = "%m/%d/%Y %H:%M")
+head(ords)
+
+# Subsetting the data for the period of time between 2011/07 and 2011/08:
+subdata <- (subset(ords, subset = ords$date >= as.Date("2011-07-01") & ords$date <= as.Date("2011-08-31")))
+
+# Interestingly, I noticed that the name of the first variable (InvoiceNo) changes after loading the data to R and I am not sure why... I tried setting check.names = FALSE in the read.csv function but it does not help...
+head(subdata)
+str(subdata)
+
+# Verifying the amount of unique transactions. 
+length(unique(subdata$ï..InvoiceNo))
+```
+
+```{r}
+## c)
+# 1) Compute the mean of Quantity and UnitPrice:
+rowsnum <- nrow(subdata)
+sumQ = 0
+sumU = 0
+for(i in 1:rowsnum){
+  sumQ = sumQ + subdata$Quantity[i]
+  sumU = sumU + subdata$UnitPrice[i]
+}
+  meanQ <- sumQ/rowsnum
+  meanU <- sumU/rowsnum
+
+#Respectively:
+print(paste("The mean of Quantity is:", round(meanQ, 3), "while the mean of UnitPrice is:", round(meanU, 3)))
+
+# I calculated the means also using the two mean functions just to draw a comparison and verify whether my technique works:  
+mean(subdata$Quantity)
+mean(subdata$UnitPrice)
+
+# 2) Determine the types of each column:
+i = 1
+for(i in c(1:9)) {
+  print(names(subdata[i]))
+  print(class(subdata[[i]]))
+}
+
+# 3) Compute the number of unique values in each column.
+i = 1
+for(i in c(1:9)){
+  print(names(subdata[i]))
+  print(length(unique(subdata[[i]])))
+}
+```
+
+```{r}
+## d)
+# Subset the data for which the transactions took place in the U.K., Netherlands, and Australia:
+subdat <- (subset(subdata, subset = subdata$Country == "United Kingdom" | subdata$Country == "Netherlands" | subdata$Country == "Australia"))
+unique(subdat$Country)
+
+# 4) Report the average and standard deviation (round them up to 3 decimal points) of the UnitPrice:
+print(paste("The average of the UnitPrice is:", round(mean(subdat$UnitPrice), 3)))
+print(paste("The standard deviation of the UnitPrice is:", round(sd(subdat$UnitPrice), 3))) #I must say that the value of sd is quite huge...
+
+# 5) Report the number of unique transactions made in these countries.
+uniq <- length(unique(subdat$ï..InvoiceNo))
+print(paste("The number of unique transactions made in the UK, Netherlands and Australia is:", uniq))
+
+# 6) How many customers residing in these countries made transactions in July and August of 2011?
+print(paste("The number of customers residing in the U.K., Netherlands and Australia performing transactions in July and August 2011 is:", length(unique(subdat$CustomerID))))
+```
+
+```{r}
+## e) Checking for customers who obtained a refund:
+table(nchar(subdat$ï..InvoiceNo))
+
+subset_e <- subset(subdat, subset = nchar(subdat$ï..InvoiceNo) == 7)
+str(subset_e)
+
+# 7) How many customers made a refund?
+print(paste("The total number of refunds is", nrow(subset_e), "while the number of unique customers who made a refund is:", length(unique(subset_e$CustomerID))))
+
+# Assigning the IDs of the customers who made at least one refund during the period into a vector called cust_refund:
+cust_refund <- c(unique(subset_e$CustomerID))
+cust_refund
+```
+
+```{r}
+## f) 
+# Non-members:
+nonMember <- subset(x = subdat, subset = is.na(subdat$CustomerID))
+
+# Creating a variable called Sales by multiplying the Quantity and the UnitPrice:
+nonMember$Sales <- nonMember$Quantity * nonMember$UnitPrice
+head(nonMember)
+
+# 8) Calculate the total sales amount for those that are missing the CustomerID:
+sum(nonMember$Sales)
+
+# 9) How many transactions were made without the customers logging into the e-commerce site?
+length(unique(nonMember$ï..InvoiceNo))
+```
