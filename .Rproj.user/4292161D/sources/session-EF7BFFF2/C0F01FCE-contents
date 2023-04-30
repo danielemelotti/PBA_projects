@@ -20,7 +20,7 @@
 ## a)
 # Importing the data:
 ords <- data.frame()
-ords <- read.csv(file = "../data/online_retail.csv", stringsAsFactors = FALSE)
+ords <- read.csv(file = "online_retail.csv", stringsAsFactors = FALSE)
 
 # Verifying that the data has been imported correctly:
 head(ords)

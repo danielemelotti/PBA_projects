@@ -1,0 +1,5 @@
+"0","data <- fread(""../data/onlineRetail.csv"")
+"
+"2","Error in fread(""../data/onlineRetail.csv"") : 
+  File '../data/onlineRetail.csv' does not exist or is non-readable. getwd()=='/Users/danielemelotti/Library/CloudStorage/GoogleDrive-daniele.melotti@gapp.nthu.edu.tw/My Drive/5. REPOS/PBA_projects/R'
+"
