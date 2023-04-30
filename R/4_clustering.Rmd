@@ -1,0 +1,196 @@
+
+```{r}
+### AS4 - Daniele Melotti
+
+### 1) Import and examine the data
+## a) Import the CSV file into R using fread() and take a look at the data (e.g., dim, head, summary, etc.).
+require(data.table)
+require(lubridate)
+require(dplyr)
+require(ggplot2)
+require(gridExtra)
+
+data <- fread("onlineRetail.csv")
+data <- na.omit(data)
+# Number of variables and rows:
+dim(data)
+
+# Take a look at the data:
+head(data)
+
+# Structure of the data:
+str(data)
+
+# Summary stats:
+summary(data)
+
+## b) Examine the data by printing out the unique number of customers, the unique number of products purchased, as well as the unique number of transactions.
+
+# Unique number of customers:
+length(unique(data$CustomerID))
+
+# Unique number of products purchased:
+length(unique(data$StockCode))
+
+# Unique number of transactions:
+length(unique(data$InvoiceNo))
+```
+
+```{r}
+### 2) Compute the RFM Variables
+## c) Convert the InvoiceDate into a date obj. then create a variable called Recency by computing the number of days until the last day of the purchase in the dataset (i.e. Dec. 09, 2011) since last purchase for each customer.
+data$InvoiceDate <- as_date(mdy_hm(data$InvoiceDate))
+
+# Creating the Recency variable:
+last_day <- max(data$InvoiceDate)
+
+data_R <- data %>%
+  group_by(CustomerID) %>%
+  summarise(last_purchase = max(InvoiceDate)) %>%
+  mutate(Recency = last_day - last_purchase)
+
+## d) Create a variable called Frequency and Monetary for each customer in the data.
+data_FM <- data %>%
+  group_by(CustomerID) %>%
+  summarise(Frequency = length(unique(InvoiceNo)),
+            Monetary = sum(Quantity * UnitPrice))
+```
+
+```{r}
+### 3) Removing Outliers (i.e., Winsorizing)
+## e) Visualize the RFM variables with box plots.
+# Joining R, F and M in the same dataset:
+RFM <- data_R %>%
+  full_join(data_FM, by = c("CustomerID" = "CustomerID"))
+
+# Creating the boxplots:
+p1 <- ggplot(RFM, aes(CustomerID, Recency)) +
+  geom_boxplot(outlier.colour = "red") +
+  coord_flip()
+
+p2 <- ggplot(RFM, aes(CustomerID, Frequency)) +
+  geom_boxplot(outlier.colour = "red") +
+  coord_flip()
+
+p3 <- ggplot(RFM, aes(CustomerID, Monetary)) +
+  geom_boxplot(outlier.colour = "red") +
+  coord_flip()
+
+grid.arrange(p1, p2, p3)
+
+## f) It seems that there are extreme values in the RFM variables. Remove these extreme values/outliers by keeping only the values that are within the 99th percentile:
+
+# These are the 99th percentiles for each variable:
+quantile(RFM$Recency, 0.99, type = 1)
+quantile(RFM$Frequency, 0.99, type = 1)
+quantile(RFM$Monetary, 0.99, type = 1)
+
+# Removing the outliers:
+RFM <- RFM %>% 
+  filter(Recency <= quantile(Recency, .99)) %>%
+  filter(Frequency <= quantile(Frequency, .99)) %>%
+  filter(Monetary <= quantile(Monetary, .99))
+
+RFM <- data.table(RFM)
+
+summary(RFM)
+```
+
+```{r}
+### 4) Scaling the variables
+## g) To prep the data for clustering, we will need to scale the features/variables. Create another data.table.obj. called RFM_scaled which contains the CustomerID and the standardized RFM variables.
+RFM_Scaled <- RFM
+
+RFM_Scaled$Recency <- scale(RFM_Scaled$Recency)
+RFM_Scaled$Frequency <- scale(RFM_Scaled$Frequency)
+RFM_Scaled$Monetary <- scale(RFM_Scaled$Monetary)
+
+# Leaving RFM_Scaled with only the CustomerID variable and the RFM:
+RFM_Scaled <- RFM_Scaled %>%
+  select(-last_purchase)
+```
+
+```{r}
+### 5) Running K-Means Clustering
+## h) Convert RFM_Scaled to a matrix. (p.s., do not forget to remove the CustomerID from the matrix).
+RFM_Clust <- RFM_Scaled %>%
+  select(-CustomerID) %>%
+  as.matrix()
+
+## i) Set seed at 2021 and run K-Means clustering (set k = 4).
+set.seed(2021)
+km.out <- kmeans(RFM_Clust, centers = 4)
+
+## j) Attach the cluster numbers (i.e. km.out$cluster) onto RFM_Scaled.
+RFM_Clust <- cbind(RFM_Clust, km.out$cluster)
+colnames(RFM_Clust) <- c(colnames(RFM_Clust)[1:3], "Cluster")
+
+head(RFM_Clust)
+```
+
+```{r}
+### 6) Examining the Clusters
+## k) Compute the average of RFM for each cluster. Do we observe any difference between the clusters? Can we label them? Which of the clusters do you think are the most suitable for us to run target marketing campaigns and how?
+RFM_Clust <- data.table(RFM_Clust)
+
+RFM_Clust %>%
+  group_by(Cluster) %>%
+  summarise(Mean_Rec = mean(Recency),
+            Mean_Fre = mean(Frequency),
+            Mean_Mon = mean(Monetary))
+
+# As we can see, there are some differences between clusters. Cluster 2 seems to be the one with the most active purchasers, as the frequency is the highest as well as the amount of money spent, while recency is very low (meaning that their last purchase was very recent). Oppositely, Cluster 4 is the one with the least active purchasers, where the value of recency is the highest (meaning that they did no purchase for a long time), while frequency and monetary are very low, meaning that they purchase rarely and spend relatively less money than customers from other clusters. In the middle, we find cluster 1 and 3, with cluster 1 holding customers that spend relatively more and more often, with a more recent latest purchase.
+```
+
+```{r}
+## l) Based on the list of top selling products, you could further develop your target marketing strategies. Print out the the top 5 most selling products in terms of sales revenue (i.e., sum of sales amount = quantity x unit price) for each cluster.
+t1 <- RFM_Scaled
+
+# Creating a table holding scaled values, cluster numbers and CustomerID:
+t2 <- cbind(t1, cluster = km.out$cluster) 
+
+# Performing an inner join between the initial raw data (with NA omitted) and table t2:
+t3 <- inner_join(x = t2, y = data, by = "CustomerID")
+
+# Adding a new column called amount = (unit price x quantity):
+str(t3)
+all_data <- t3 %>% 
+    mutate(Amount = Quantity * UnitPrice,
+                    InvoiceNo = as.factor(InvoiceNo),
+                    StockCode = as.factor(StockCode),
+                    CustomerID = as.factor(CustomerID))
+str(t3)
+
+# Subsetting for each cluster:
+cluster1 <- subset(all_data, cluster == 1)
+cluster2 <- subset(all_data, cluster == 2)
+cluster3 <- subset(all_data, cluster == 3)
+cluster4 <- subset(all_data, cluster == 4)
+
+# Printing out the top5 selling products for each cluster:
+cluster1 %>% group_by(StockCode) %>%
+    arrange(-Amount) %>%
+    select(CustomerID, StockCode, Amount) %>%
+    head(5)
+
+cluster2 %>% group_by(StockCode) %>%
+    arrange(-Amount) %>%
+    select(CustomerID, StockCode, Amount) %>%
+    head(5)
+
+cluster3 %>% group_by(StockCode) %>%
+    arrange(-Amount) %>%
+    select(CustomerID, StockCode, Amount) %>%
+    head(5)
+
+cluster4 %>% group_by(StockCode) %>%
+    arrange(-Amount) %>%
+    select(CustomerID, StockCode, Amount) %>%
+    head(5)
+
+
+all_data %>%
+  filter(StockCode == "M",
+         CustomerID == 12536)
+```
+
